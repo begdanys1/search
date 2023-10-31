@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
+    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+</head>
+<py-script>
+from html import parser
+import random
+import asyncio
+
+proxy_list = [
+    "ua-1.stableproxy.com:11001:PbqHZPY1G_0:Y7QZK51dlCfc",
+    "ua-1.stableproxy.com:11002:PbqHZPY1G_1:Y7QZK51dlCfc",
+    # ... (остальные прокси из вашего списка)
+]
+
+def get_my_ip_and_location(proxy_string):
+    proxy_parts = proxy_string.split(":")
+    proxy_address = f"{proxy_parts[0]}:{proxy_parts[1]}"
+    username = proxy_parts[2]
+    password = proxy_parts[3]
+
+    proxies = {
+        "http": f"http://{username}:{password}@{proxy_address}",
+        "https": f"http://{username}:{password}@{proxy_address}"
+    }
+
+    try:
+        ip_response = await pyodide.run_js_async("fetch('http://httpbin.org/ip').then(res => res.json())")
+        ip_address = ip_response.get('origin')
+
+        location_response = await pyodide.run_js_async(f"fetch('http://ipinfo.io/{ip_address}/json').then(res => res.json())")
+        location_data = location_response
+
+        city = location_data.get('city', 'Неизвестный город')
+        country = location_data.get('country', 'Неизвестная страна')
+        location = f"{city}, {country}"
+
+        return ip_address, location
+    except Exception as e:
+        print(f"Не удалось получить информацию из-за ошибки: {e}")
+        return "Неизвестный IP", "Неизвестное местоположение"
+
+class MyHTMLParser(parser.HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.links = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'a':
+            for attr in attrs:
+                if attr[0] == 'href' and ('data-text-ad', '1') in attrs:
+                    self.links.append(attr[1])
+
+def get_google_ads_links_with_data_attribute(query):
+    url = f'https://www.google.com/search?q={query}'
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36"
+    }
+
+    response = await pyodide.run_js_async(f"fetch('{url}', {{ headers: {headers} }}).then(res => res.text())")
+    soup = MyHTMLParser()
+    soup.feed(response)
+
+    return soup.links
+
+    async def main():
+    proxy_string = random.choice(proxy_list)
+    ip_address, location = await get_my_ip_and_location(proxy_string)
+
+    print(f"Ваш IP-адрес через прокси: {ip_address}")
+    print(f"Ваше местоположение: {location}")
+
+    query = input("Введите ваш запрос: ")
+    links = await get_google_ads_links_with_data_attribute(query)
+
+    for i, link in enumerate(links, 1):
+        print(f"{i}. {link}")
+
+asyncio.ensure_future(main())
+</py-script>
+</html>
